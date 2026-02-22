@@ -10,26 +10,26 @@ from .layout import compute_grid_layout, compute_mixed_layout
 
 
 def parse_items_arg(s: str) -> list[dict]:
-    """Parse '30x20x15:4, 40x30x20:2(Label)' into list of item dicts.
-    (Label) suffix reserves space for a label next to each bin."""
+    """Parse '30x20x15:4, 40x30x20:2(70123-SD-1)' into list of item dicts.
+    (LABEL) suffix reserves label space and inserts the text on each bin."""
     items = []
     for part in s.split(","):
         part = part.strip()
-        has_label = False
+        label_text = None
         if ":" in part:
             dims_str, count_str = part.rsplit(":", 1)
             count_str = count_str.strip()
             if "(" in count_str:
                 count_part, rest = count_str.split("(", 1)
                 count = int(count_part.strip())
-                has_label = rest.rstrip(")").strip()  # e.g. "Label"
+                label_text = rest.rstrip(")").strip() or None  # e.g. "70123-SD-1"
             else:
                 count = int(count_str)
         else:
             dims_str = part
             count = 1
         w, l, h = parse_dimensions(dims_str.strip())
-        items.append({"width": w, "length": l, "height": h, "count": count, "label": bool(has_label)})
+        items.append({"width": w, "length": l, "height": h, "count": count, "label": label_text})
     return items
 
 
@@ -132,6 +132,20 @@ def main() -> None:
         default="X",
         help="Label orientation: X = to the right (default), Y = below",
     )
+    parser.add_argument(
+        "--label-text-size",
+        type=float,
+        default=4.0,
+        metavar="MM",
+        help="Label text font size in mm (default: 4.0)",
+    )
+    parser.add_argument(
+        "--label-text-depth",
+        type=float,
+        default=0.5,
+        metavar="MM",
+        help="Label engrave depth into top surface in mm (default: 0.5)",
+    )
 
     args = parser.parse_args()
 
@@ -156,6 +170,8 @@ def main() -> None:
             stack_clearance=args.stack_clearance,
             label_size=label_size,
             label_dir=args.label_dir,
+            label_text_size=args.label_text_size,
+            label_text_depth=args.label_text_depth,
         )
         config.validate()
     except ValueError as e:
@@ -170,7 +186,7 @@ def main() -> None:
             )
         else:
             items = parse_items_arg(args.items)
-            if any(it.get("label") for it in items) and config.label_size is None:
+            if any(it.get("label") is not None for it in items) and config.label_size is None:
                 parser.error("--label-size required when using (Label) in items spec")
             layout_result = compute_mixed_layout(items, config)
     except ValueError as e:

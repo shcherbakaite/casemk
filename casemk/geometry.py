@@ -7,8 +7,10 @@ from solid import (
     difference,
     linear_extrude,
     offset,
+    rotate,
     scad_render_to_file,
     square,
+    text,
     translate,
     union,
 )
@@ -63,6 +65,58 @@ def build_base_tray(
         tray = difference()(outer_box, union()(*cavities))
     else:
         tray = outer_box
+
+    # Label text on top surface, in the label gap (reserved area)
+    label_w, label_l = (0.0, 0.0) if config.label_size is None else config.label_size
+    label_dir_x = config.label_dir == "X"
+    text_depth = config.label_text_depth
+    margin = 0.85  # use 85% of label area for text
+    char_width_ratio = 0.6  # typical font: char width ≈ 0.6 * height
+
+    label_texts = []
+    for slot in slots:
+        if not slot.label_text or slot.label_width is None:
+            continue
+        if label_dir_x:
+            lx = wall + cavity_inset + slot.x + slot.width + config.divider_thickness
+            ly = wall + cavity_inset + slot.y
+            cx = lx + label_w / 2
+            cy = ly + label_l / 2
+        else:
+            lx = wall + cavity_inset + slot.x + max(0, (slot.width - label_w) / 2)
+            ly = wall + cavity_inset + slot.y + slot.length + config.divider_thickness
+            cx = lx + label_w / 2
+            cy = ly + label_l / 2
+
+        # Scale text to fit within label area (label_size)
+        # label_dir X: rotated 90°, text extents swap (size in X, n*0.6*size in Y)
+        # label_dir Y: horizontal, text is n*0.6*size in X, size in Y
+        n_chars = max(len(slot.label_text), 1)
+        if label_dir_x:
+            size_by_height = (label_l * margin) / (n_chars * char_width_ratio)
+            size_by_width = label_w * margin
+        else:
+            size_by_height = label_l * margin
+            size_by_width = (label_w * margin) / (n_chars * char_width_ratio)
+        text_size = min(config.label_text_size, size_by_height, size_by_width)
+        text_size = max(text_size, 2.5)  # minimum readable size
+
+        txt = text(
+            slot.label_text,
+            size=text_size,
+            halign="center",
+            valign="center",
+        )
+        # Rotate so text reads correctly when viewing case from above
+        # label_dir X: label to right of slot, rotate 90° so text runs along slot (vertical)
+        # label_dir Y: label below slot, text runs horizontal (no rotation)
+        txt_rotated = rotate([0, 0, 90 if label_dir_x else 0])(txt)
+        txt_3d = linear_extrude(height=text_depth + 0.01)(txt_rotated)
+        # Engrave into top surface (cut, not add)
+        label_texts.append(translate([cx, cy, outer_z - text_depth])(txt_3d))
+
+    if label_texts:
+        tray = difference()(tray, union()(*label_texts))
 
     if config.stackable:
         lip_inner = config.stack_lip_inner

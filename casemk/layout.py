@@ -17,6 +17,7 @@ class SlotRect:
     height: float
     label_width: Optional[float] = None  # extra space for label to the right
     label_length: Optional[float] = None
+    label_text: Optional[str] = None  # text to engrave in label area
 
 
 @dataclass
@@ -157,19 +158,19 @@ def compute_mixed_layout(
     label_w, label_l = (0.0, 0.0) if config.label_size is None else config.label_size
     label_dir_x = config.label_dir == "X"  # X = right, Y = below
 
-    # Flatten to list of (w, l, h, has_label) with count
-    expanded: List[Tuple[float, float, float, bool]] = []
+    # Flatten to list of (w, l, h, label_text) with count
+    expanded: List[Tuple[float, float, float, Optional[str]]] = []
     for item in items:
         w = item["width"]
         l = item["length"]
         h = item["height"]
         cnt = item.get("count", 1)
-        has_label = item.get("label", False)
+        label_text = item.get("label")  # None or str
         cell_w = w + config.clearance
         cell_l = l + config.clearance
         cell_h = h + config.clearance
         for _ in range(cnt):
-            expanded.append((cell_w, cell_l, cell_h, has_label))
+            expanded.append((cell_w, cell_l, cell_h, label_text))
 
     # Sort by area descending (largest first)
     expanded.sort(key=lambda x: x[0] * x[1], reverse=True)
@@ -190,7 +191,8 @@ def compute_mixed_layout(
     max_x_used = 0.0
     max_y_used = 0.0
 
-    for cw, cl, ch, has_label in expanded:
+    for cw, cl, ch, label_text in expanded:
+        has_label = label_text is not None
         slot_label_w = label_w if has_label else None
         slot_label_l = label_l if has_label else None
         if has_label and label_dir_x:
@@ -219,6 +221,7 @@ def compute_mixed_layout(
                 SlotRect(
                     x=row_x, y=row_y, width=cw, length=cl, height=ch,
                     label_width=slot_label_w, label_length=slot_label_l,
+                    label_text=label_text,
                 )
             )
             row_x += x_advance
@@ -240,6 +243,7 @@ def compute_mixed_layout(
                 SlotRect(
                     x=0.0, y=row_y, width=cw, length=cl, height=ch,
                     label_width=slot_label_w, label_length=slot_label_l,
+                    label_text=label_text,
                 )
             )
             row_x = x_advance

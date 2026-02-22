@@ -21,6 +21,8 @@ class Config:
     stack_clearance: float = 0.3  # mm fit clearance
     label_size: Optional[Tuple[float, float]] = None  # WxL for label area next to bin
     label_dir: str = "X"  # X = label to the right, Y = label below
+    label_text_size: float = 4.0  # font size in mm for label text
+    label_text_depth: float = 0.5  # engrave depth into top surface in mm
 
     def validate(self) -> None:
         """Validate configuration values."""
@@ -57,6 +59,10 @@ class Config:
                 raise ValueError("label_size must have positive dimensions")
         if self.label_dir not in ("X", "Y"):
             raise ValueError("label_dir must be X or Y")
+        if self.label_text_size <= 0:
+            raise ValueError("label_text_size must be positive")
+        if self.label_text_depth <= 0:
+            raise ValueError("label_text_depth must be positive")
 
     @property
     def max_x(self) -> float:
